@@ -30,11 +30,11 @@ commuters-own [
    last-stop ;;last destination
    ]
 
-vertices-own [ 
+vertices-own [
   myneighbors  ;;agentset of neighboring vertices
   entrance?  ;;if it is an entrance to a building
   test  ;;used to delete in test
-  
+
   ;;the follwoing variables are used and renewed in each path-selection
   dist  ;;distance from original point to here
   done ;;1 if has calculated the shortest path through this point, 0 otherwise
@@ -43,63 +43,64 @@ vertices-own [
 
 
 to setup
-  ca 
-  reset-ticks  
+  ca
+  reset-ticks
 
  ;;loading GIS files here
- 
-  if show_lakes? [
-   
+
+
+
+ set gmu-buildings gis:load-dataset "data/Campus_data/Mason_bld.shp"
+
+ set gmu-walkway gis:load-dataset "data/Campus_data/Mason_walkway_line.shp"
+
+ gis:set-world-envelope gis:envelope-of gmu-walkway
+
+ gis:set-drawing-color 5  gis:fill gmu-buildings 1.0
+
+    if show_lakes? [
+
    set gmu-lakes gis:load-dataset "data/Campus_data/hydrop.shp"
-   
+
    set gmu-rivers gis:load-dataset "data/Campus_data/hydrol.shp"
-   
+
    gis:set-drawing-color 87  gis:fill gmu-lakes 1.0
    gis:set-drawing-color 87  gis:draw gmu-rivers 0.5
-   
+
  ]
-  
+
   if show_driveway? [
        set gmu-drive gis:load-dataset "data/Campus_data/Mason_Rds.shp"
 
-    
+
        gis:set-drawing-color 36  gis:fill gmu-drive 1.0
   ]
- 
- set gmu-buildings gis:load-dataset "data/Campus_data/Mason_bld.shp"       
- 
- set gmu-walkway gis:load-dataset "data/Campus_data/Mason_walkway_line.shp"
- 
- gis:set-world-envelope gis:envelope-of gmu-walkway
- 
- gis:set-drawing-color 5  gis:fill gmu-buildings 1.0
- 
- 
+
 
  ;gis:set-drawing-color 25  gis:draw gmu-walkway 1.0
- 
+
  ;identify centroids and assign IDs to centroids
  foreach gis:feature-list-of gmu-buildings
-  [ let center-point gis:location-of gis:centroid-of ?
+  [ ?1 -> let center-point gis:location-of gis:centroid-of ?1
     ask patch item 0 center-point item 1 center-point [
       set centroid? true
-      set id gis:property-value ? "Id"
-      ]]
+      set id gis:property-value ?1 "Id"
+      ] ]
 
 ;;ask patches with [ centroid? = true][sprout 1 [set size 2 set color red]] ;;use this line to verify
 
 
 
 ;;create turtles representing the nodes. create links to conect them.
-foreach gis:feature-list-of gmu-walkway[
-  
-  foreach gis:vertex-lists-of ? ; for the road feature, get the list of vertices
-       [
+foreach gis:feature-list-of gmu-walkway[ ?1 ->
+
+  foreach gis:vertex-lists-of ?1 ; for the road feature, get the list of vertices
+       [ ??1 ->
         let previous-node-pt nobody
-        
-        foreach ?  ; for each vertex in road segment feature
-         [ 
-          let location gis:location-of ?
+
+        foreach ??1  ; for each vertex in road segment feature
+         [ ???1 ->
+          let location gis:location-of ???1
           if not empty? location
            [
             ;ifelse any? vertices with [(xcor = item 0 location and ycor = item 1 location) ] ; if there is not a road-vertex here already
@@ -113,53 +114,54 @@ foreach gis:feature-list-of gmu-walkway[
                 set shape "circle"
                 set color brown
                 set hidden? true
-      
-     
+
+
               ;; create link to previous node
               ifelse previous-node-pt = nobody
                  [] ; first vertex in feature
-                 [create-link-with previous-node-pt] ; create link to previous node  
+                 [create-link-with previous-node-pt] ; create link to previous node
                   set previous-node-pt self]
                ;]
-           ]]] ]
+           ] ] ] ]
 
-  
 
-  
+
+
 
   ;;delete duplicate vertices (there may be more than one vertice on the same patch due to reducing size of the map). therefore, this map is simplified from the original map.
-  
+
   delete-duplicates
-  
+
   ;;delete some nodes not connected to the network
   ask vertices [set myneighbors link-neighbors]
   delete-not-connected
   ask vertices [set myneighbors link-neighbors]
 
-  
+
   ;;find nearest node to become entrance
-  ask patches with [centroid? = true][set entrance min-one-of vertices in-radius 50 [distance myself] 
+  ask patches with [centroid? = true][set entrance min-one-of vertices in-radius 50 [distance myself]
     ask entrance [set entrance? true]
     if show_nodes? [ask vertices [set hidden? false]]
     if show_entrances? [ask entrance [set hidden? false set shape "star" set size 0.5]]]
 
-  
+
  create-the-commuters
 
   set got_to_destination 0
-  
+
  ;;verification
  ;;ask one-of vertices [set hidden? false set color red ask myneighbors [set hidden? false set color yellow]]
- 
- 
+
+
 ask links [set thickness 0.1 set color orange]
- 
+
+
 end
 
 
 
 to move
-  
+
   ;;pick a destination if it does not have any yet
   ask commuters [
     if destination = nobody [
@@ -168,22 +170,22 @@ to move
        set destination-entrance [entrance] of destination
        while [destination-entrance = mynode] [set destination one-of patches with [centroid? = true] set destination-entrance [entrance] of destination]
 
-       
+
        ;;select shortest path
-       path-select      
+       path-select
     ]
   ]]
-  
 
-  
-  
+
+
+
   ;;move along the path selected
  ask commuters [
     ifelse xcor != [xcor] of destination-entrance or ycor != [ycor] of destination-entrance [
     move-to item step-in-path mypath
     set step-in-path step-in-path + 1
     ]
-   [ ;move-to destination 
+   [ ;move-to destination
     set last-stop destination
     set destination nobody set mynode destination-entrance set got_to_destination got_to_destination + 1]  ;;arrive and select new destination
  ]
@@ -202,9 +204,9 @@ to delete-duplicates
     ask vertices [
     if count vertices-here > 1[
       ask other vertices-here [
-        
+
         ask myself [create-links-with other [link-neighbors] of myself]
-        die] 
+        die]
       ]
     ]
 
@@ -217,7 +219,7 @@ to delete-not-connected
    ask vertices with [test = 1]
    [ask myneighbors [set test 1]]]
  ask vertices with [test = 0][die]
- 
+
 end
 
 
@@ -225,50 +227,50 @@ end
 
 
 to path-select
-     
+
      ;;use the A-star algorithm to find the shortest path (shortest in terms of distance)
-     
+
      set mypath [] set step-in-path 0
-     
+
      ask vertices [set dist 99999 set done 0 set lastnode nobody set color brown]
-     
+
 
      ask mynode [
        set dist 0 ] ;;distance to original node is 0
-  
 
-    while [count vertices with [done = 0] > 0][   
+
+    while [count vertices with [done = 0] > 0][
       ask vertices with [dist < 99999 and done = 0][
          ask myneighbors [
            let dist0 distance myself + [dist] of myself    ;;renew the shorstest distance to this point if it is smaller
            if dist > dist0 [set dist dist0 set done 0 ;;done=0 if dist renewed, so that it will renew the dist of its neighbors
              set lastnode myself]  ;;record the last node to reach here in the shortest path
            ;set color red  ;;all roads searched will get red
-           ]  
+           ]
          set done 1  ;;set done 1 when it has renewed it neighbors
       ]]
-     
+
      ;print "Found path"
-     
-     
+
+
      ;;put nodes in shortest path into a list
      let x destination-entrance
-     
+
      while [x != mynode] [
        if show_path? [ask x [set color yellow] ] ;;highlight the shortest path
        set mypath fput x mypath
        set x [lastnode] of x ]
-     
+
 
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 267
 10
-819
-583
-10
-10
+817
+561
+-1
+-1
 25.81
 1
 10
@@ -315,7 +317,7 @@ number-of-commuters
 number-of-commuters
 1
 100
-40
+40.0
 1
 1
 NIL
@@ -791,9 +793,8 @@ false
 0
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
-
 @#$#@#$#@
-NetLogo 5.2.0
+NetLogo 6.0.2
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
@@ -809,7 +810,6 @@ true
 0
 Line -7500403 true 150 150 90 180
 Line -7500403 true 150 150 210 180
-
 @#$#@#$#@
 0
 @#$#@#$#@
